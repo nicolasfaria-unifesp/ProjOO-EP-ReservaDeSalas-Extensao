@@ -2,6 +2,9 @@ package com.universidade.reserva;
 
 import com.universidade.reserva.decorators.ReservaComEquipamentoMultimidia;
 import com.universidade.reserva.decorators.ReservaComServicoLimpeza;
+import com.universidade.reserva.historico.EntradaHistorico;
+import com.universidade.reserva.historico.HistoricoReservasProxy;
+import com.universidade.reserva.historico.IHistoricoReservas;
 import com.universidade.reserva.observers.NotificacaoEmailObserver;
 import com.universidade.reserva.observers.RelatorioDiarioObserver;
 import com.universidade.reserva.salas.Sala;
@@ -14,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.UUID;
 
 public class Main {
@@ -26,6 +30,10 @@ public class Main {
 
         ConfigurationManager config = ConfigurationManager.getInstance();
         System.out.println("Salas disponíveis configuradas: " + config.getAvailableRooms() + "\n");
+
+        // PROXY
+        Set<String> admins = Set.of("admin");
+        IHistoricoReservas historico = new HistoricoReservasProxy(admins);
 
         reservaService = new ReservaService();
         scanner = new Scanner(System.in);
@@ -50,6 +58,7 @@ public class Main {
             System.out.println("4. Gerar Relatório Diário");
             System.out.println("5. Mudar Política de Reserva (Atual: " + reservaService.getPoliticaDeReservaNome() + ")");
             System.out.println("6. Demonstrar Padrão Decorator");
+            System.out.println("7. Histórico de Reservas");
             System.out.println("0. Sair");
             System.out.print("Escolha uma opção: ");
             try {
@@ -77,6 +86,9 @@ public class Main {
                     break;
                 case 6:
                     demonstrarDecorator();
+                    break;
+                case 7:
+                    consultarHistorico();
                     break;
                 case 0:
                     System.out.println("Saindo...");
@@ -121,9 +133,11 @@ public class Main {
 
     private static void cancelarReserva() {
         System.out.println("\n--- Cancelar Reserva ---");
+        System.out.print("Seu nome de usuário: ");
+        String usuarioSolicitante = scanner.nextLine();
         System.out.print("ID da Reserva a cancelar: ");
         String idReserva = scanner.nextLine();
-        reservaService.cancelarReserva(idReserva);
+        reservaService.cancelarReserva(idReserva, usuarioSolicitante);
     }
 
     private static void listarTodasReservas() {
@@ -204,5 +218,46 @@ public class Main {
         System.out.println("Outra Reserva (Limpeza + Multimídia): " + outraReserva.getDescricao() + " | Custo: " + String.format("%.2f", outraReserva.getCusto()));
 
         System.out.println("\nObservação: As reservas decoradas acima são apenas para demonstração do padrão Decorator e não são persistidas no ReservaService.");
+    }
+
+    private static void consultarHistorico() {
+        System.out.println("\n--- Histórico de Reservas ---");
+        System.out.println("Dica: use 'admin' para acesso total, 'professor...' para registrar,");
+        System.out.println("      ou seu próprio nome para ver seu histórico.");
+        System.out.print("Seu nome de usuário: ");
+        String usuarioConsulta = scanner.nextLine();
+
+        System.out.println("1. Ver histórico completo");
+        System.out.println("2. Ver histórico de um usuário específico");
+        System.out.print("Escolha: ");
+        int opcao = -1;
+        try {
+            opcao = Integer.parseInt(scanner.nextLine());
+        } catch (NumberFormatException e) {
+            System.out.println("Entrada inválida.");
+            return;
+        }
+
+        List<EntradaHistorico> entradas;
+        switch (opcao) {
+            case 1:
+                entradas = reservaService.getHistorico().consultarHistorico(usuarioConsulta);
+                break;
+            case 2:
+                System.out.print("Usuário alvo: ");
+                String alvo = scanner.nextLine();
+                entradas = reservaService.getHistorico().consultarHistoricoPorUsuario(usuarioConsulta, alvo);
+                break;
+            default:
+                System.out.println("Opção inválida.");
+                return;
+        }
+
+        if (entradas.isEmpty()) {
+            System.out.println("Nenhuma entrada encontrada (ou acesso negado).");
+        } else {
+            System.out.println("\n" + entradas.size() + " entrada(s) encontrada(s):");
+            entradas.forEach(System.out::println);
+        }
     }
 }
